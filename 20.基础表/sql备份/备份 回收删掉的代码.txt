@@ -1,0 +1,27 @@
+--跟机PK跟机率1为赢了，0为输了，输的话平分金额为0，赢了的话，按组别分组求和可以平分的金额
+WITH W2 AS
+ (SELECT W1.*,
+         0 pf_amount01, --PK跟机率后，为0的就是输了，输了的话平分金额直接为0，否则按组别平分2个点，平分金额（分子）
+         
+         1 PF_people01 --平分人数（分母）
+  
+    FROM V_HSD_1_NAME01_Gjl01 W1
+  
+  ),
+
+--用平分金额/平分人数，得到每个人的平分金额
+W3 as
+ (select W2.*,
+         round(pf_amount01 / (case
+                 when PF_people01 = 0 then
+                  1
+                 else
+                  PF_people01
+               end),
+               2) PF_emp01 --平分人数为0的话，认定平分人数为1，因为平分金额也是平分的佣金（分子/分母）
+  
+    from W2)
+
+--4%部分+上一步算出来的每个人的平分金额
+SELECT a.*, a.PER4 + a.PF_emp01 HsEmp01
+  FROM W3 a

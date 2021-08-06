@@ -1,0 +1,67 @@
+/*功能名称：销售人员智慧屏提成*/
+
+CREATE OR REPLACE VIEW V_NAME01_TvEmp01_EMP AS
+
+with w1 as
+ (select a.*, -- 人员姓名, 人员所在地区
+         b.NUM01, --人员智慧屏销量
+         b.tvemp01,
+         b.wm_lsd01, --销售的具体单号
+         
+         c.group02, -- AB店划分
+         
+         D.NUM01 AREA_NUM01, --地区的销量
+         D.AREA_ZHP_TASK01, -- 地区任务
+         d.diff01, --所在门店的未达标数量
+         (CASE
+           WHEN d.DIFF01 > 0 THEN
+            0
+           ELSE
+            1
+         END) is_area_dabiao01 -- 人员对应的地区,该地区是否达标  门店任务 - 门店完成 >0  表示未完成任务 值为0 表示未达标;    否则就是达标1
+  
+    from rysd_zhp a
+  
+    LEFT JOIN V_LSD_3_NAME01_DATA b
+      on a.name01 = b.NAME01
+  
+    left join zhp_area_task c
+      on a.area01 = c.area01
+  
+    left join V_LSD_3_AREA01_diff01 d --地区智慧屏的任务, 地区的销量, 是否达标
+      on a.area01 = d.AREA01),
+
+
+--门店达标或者是新员工, 不扣罚
+--否则的话, 针对没有销售的人员或者销售为0的人员 A店扣200  B店扣100
+
+W2 AS
+ (select w1.*,
+         (CASE
+           WHEN is_area_dabiao01 = 1 or newname01=1 THEN  -- 新员工或者达标了, 都不扣罚
+            0
+           ELSE
+            (CASE
+              WHEN (NUM01 is null or NUM01 = 0) and group02 = 'A' THEN  --没有销售,A店的话扣200
+               -200
+              ELSE
+               (CASE
+                 WHEN (NUM01 is null or NUM01 = 0) and group02 = 'B' THEN -- 没有销售, B店的话扣100
+                  -100
+                 ELSE
+                  0   --否则的话就不扣
+               END)
+            
+            END)
+         END) koufa01
+  
+    from w1
+  
+  )
+
+SELECT a.*, nvl(tvemp01,0)+koufa01 emp_tc01 FROM W2 a
+
+   where exists (select j.name01
+          from rysd_ZHP j
+         where a.name01 = j.name01
+           and j.hs_comm01 =1) --最后锁定适用该政策的人员
